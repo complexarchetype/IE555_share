@@ -1,30 +1,63 @@
-import csv
+import pandas as pd
+import geopy
 from geopy.geocoders import Nominatim
+import plotly.express as px
+import dash
+import dash_core_components as dcc
+import dash_html_components as html
+import dash_bootstrap_components as dbc
 
-f = open('city_temperatures.csv')
-csv_f = csv.reader(f)
-Geo_Location = list(csv_f)
-Temp_Loc = []
-print(len(Geo_Location))
-Geo_Location[0].extend(['latitude'])
-Geo_Location[0].extend(['longitude'])
-for i in range(1,len(Geo_Location)):
-  #print(Geo_Location[i])
+#Turning the xls file into a pandas dataframe
+city_temps = 'city_temperatures.xlsx'
+df = pd.read_excel(city_temps)
 
-  address=Geo_Location[i][0:2]
-  geolocator = Nominatim(user_agent="Ian_Unson")
-  location = geolocator.geocode(address)
-  print(location.address)
-  print((location.latitude, location.longitude))
-  Geo_Location[i].extend([location.latitude])
-  Geo_Location[i].extend([location.longitude])
+#To check out the first few rows of the initial dataframe
+df.head()
 
-with open('city_temperatures_location.csv', 'w', newline="") as g:
-  # using csv.writer method from CSV package
-  write = csv.writer(g)
-  write.writerows(Geo_Location)
+# #Geocoder toy example
+locator = Nominatim(user_agent='saifahme@buffalo.edu')
+location = locator.geocode('Albuquerque, NM')
+# print('Latitude = {}, Longitude = {}'.format(location.latitude, location.longitude))
 
-print(Geo_Location)
-print(Geo_Location[1][0:2])
-# print(Geo_Location[0])
-# print(Temp_Loc)
+#Adding Latitude and Longitude columns to the dataframe
+Latitude = []
+Longitude = []
+
+for i in range(df.shape[0]):
+    Latitude.append((locator.geocode('%s, %s' % (df['City'][i], df['State'][i]))).latitude)
+    Longitude.append((locator.geocode('%s, %s' % (df['City'][i], df['State'][i]))).longitude)
+
+df['Latitude'] = Latitude
+df['Longitude'] = Longitude 
+
+#To check out the first few rows of the revised dataframe
+df.head()
+
+#Using plotly to show data on the map
+#Created a Mapbox account at "https://studio.mapbox.com/" to get a public token 
+token = 'pk.eyJ1IjoiY3NhaWYiLCJhIjoiY2wwYnJiYW9mMTA5ZDNqbWczYnRkZ242ciJ9.SyoWnR-M1id4C5pdwmOF6w'
+
+card_content = [
+    dbc.CardHeader("Card header"),
+    dbc.CardBody(
+        [
+            html.H5("Card title", className="card-title"),
+            html.P(
+                "This is some card content that we'll reuse",
+                className="card-text",
+            ),
+        ]
+    ),
+]
+
+px.set_mapbox_access_token(token)
+fig = px.scatter_mapbox(df, lat="Latitude", lon="Longitude", color='Avg Temp [degrees F]', hover_name="City",
+                            size='Avg Temp [degrees F]', color_continuous_scale=px.colors.cyclical.IceFire, size_max=15, zoom=10)
+
+app = dash.Dash()
+app.layout = html.Div([
+    dcc.Graph(figure=fig),
+
+])
+
+app.run_server(debug=True, use_reloader=False) 
